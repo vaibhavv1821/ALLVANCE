@@ -15,6 +15,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { PrimaryButton } from '@/components';
 import { CompanyWithCounts } from '@/database/repositories/CompanyRepository';
 import { ApplicationWithCompany } from '@/database/repositories/ApplicationRepository';
+import { resumeRepository, ResumeSummary } from '@/database/repositories/ResumeRepository';
 import { ApplicationStatus, APPLICATION_STATUS_METADATA } from '../types';
 import { JOB_TYPES, APPLICATION_SOURCES } from '../constants';
 
@@ -63,6 +64,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
   const [variableSalary, setVariableSalary] = useState('');
   const [source, setSource] = useState('Campus Placement');
   const [resumeVersion, setResumeVersion] = useState('');
+  const [availableResumes, setAvailableResumes] = useState<ResumeSummary[]>([]);
   const [status, setStatus] = useState<ApplicationStatus>('APPLIED');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -70,6 +72,17 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
 
   useEffect(() => {
     if (visible) {
+      resumeRepository
+        .getAllResumes()
+        .then((resList) => {
+          setAvailableResumes(resList);
+          if (!initialData && resList.length > 0) {
+            const def = resList.find((r) => r.isDefault === 1) || resList[0];
+            setResumeVersion(`${def.title} (${def.versionName})`);
+          }
+        })
+        .catch(() => {});
+
       if (initialData) {
         setCompanyId(initialData.companyId);
         setRoleTitle(initialData.roleTitle || '');
@@ -90,7 +103,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
         setFixedSalary('');
         setVariableSalary('');
         setSource('Campus Placement');
-        setResumeVersion('SWE_Resume_2026.pdf');
+        setResumeVersion('');
         setStatus('APPLIED');
         setNotes('');
         setIsAddingNewCompany(companies.length === 0);
@@ -503,6 +516,26 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                   value={resumeVersion}
                   onChangeText={setResumeVersion}
                 />
+                {availableResumes.length > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                    {availableResumes.slice(0, 3).map((r) => (
+                      <TouchableOpacity
+                        key={r.id}
+                        onPress={() => setResumeVersion(`${r.title} (${r.versionName})`)}
+                        style={{
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                          backgroundColor: `${colors.accent}15`,
+                          borderRadius: borderRadius.xs,
+                        }}
+                      >
+                        <Text style={{ fontSize: typography.fontSizes.xxs, color: colors.accent, fontWeight: '600' }} numberOfLines={1}>
+                          {r.title}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             </View>
 

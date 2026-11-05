@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   Modal,
   View,
@@ -58,6 +59,7 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
   onOpenAddOffer,
 }) => {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
+  const router = useRouter();
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);
@@ -365,17 +367,24 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
               </View>
 
               {application.resumeVersion ? (
-                <View style={styles.metaItem}>
-                  <FileText size={14} color={colors.primary} />
+                <TouchableOpacity
+                  onPress={() => {
+                    onClose();
+                    router.push('/resume');
+                  }}
+                  activeOpacity={0.7}
+                  style={styles.metaItem}
+                >
+                  <FileText size={14} color={colors.accent} />
                   <Text
                     style={[
                       styles.metaText,
-                      { color: colors.primary, fontSize: typography.fontSizes.xs },
+                      { color: colors.accent, fontSize: typography.fontSizes.xs, textDecorationLine: 'underline' },
                     ]}
                   >
-                    {application.resumeVersion}
+                    Resume: {application.resumeVersion}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ) : null}
             </View>
 
