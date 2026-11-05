@@ -518,7 +518,7 @@ const ItemRow: React.FC<{
   title: string;
   subtitle?: string;
   date?: string;
-  meta?: string;
+  meta?: string | null;
   onEdit: () => void;
   onDelete: () => void;
 }> = ({ title, subtitle, date, meta, onEdit, onDelete }) => {

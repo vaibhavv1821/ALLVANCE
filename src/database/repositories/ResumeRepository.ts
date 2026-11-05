@@ -16,6 +16,21 @@ import {
 } from '../schema/resume';
 import { DEFAULT_RESUME_SECTIONS } from '../seed/defaultResume';
 
+export {
+  Resume,
+  ResumeProfile,
+  ResumeSection,
+  ResumeEducation,
+  ResumeExperience,
+  ResumeProject,
+  ResumeSkill,
+  ResumeCertification,
+  ResumeAchievement,
+  ResumeVersion,
+  ResumeJobMatch,
+  ResumeImportedFile,
+};
+
 export interface ResumeDetailed extends Resume {
   profile: ResumeProfile | null;
   sections: ResumeSection[];
