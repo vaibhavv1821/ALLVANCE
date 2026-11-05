@@ -5,3 +5,4 @@ export * from './dsa';
 export * from './planner';
 export * from './knowledge';
 export * from './analytics';
+export * from './resume';

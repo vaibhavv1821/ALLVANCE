@@ -1,6 +1,7 @@
 import { getRawDb } from '../client';
 import { DEFAULT_SETTINGS } from '../seed/defaultSettings';
 import { DEFAULT_DSA_ROADMAP } from '../seed/defaultDsaRoadmap';
+import { DEFAULT_SEED_RESUME, DEFAULT_RESUME_SECTIONS } from '../seed/defaultResume';
 import { generateUUID } from '@/utils/uuid';
 
 export interface Migration {
@@ -587,6 +588,430 @@ export const migrations: Migration[] = [
             subOrder++;
           }
         }
+      }
+    },
+  },
+  {
+    version: 4,
+    name: '0004_resume_module',
+    up: (db) => {
+      // 1. Resumes table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resumes (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          target_role TEXT,
+          template_id TEXT NOT NULL DEFAULT 'modern',
+          is_default INTEGER NOT NULL DEFAULT 0,
+          version_name TEXT NOT NULL DEFAULT 'v1.0',
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resumes_is_default ON resumes(is_default);
+        CREATE INDEX IF NOT EXISTS idx_resumes_created_at ON resumes(created_at);
+      `);
+
+      // 2. Resume Profiles table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_profiles (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          full_name TEXT NOT NULL,
+          professional_title TEXT,
+          email TEXT,
+          phone TEXT,
+          location TEXT,
+          linkedin_url TEXT,
+          github_url TEXT,
+          portfolio_url TEXT,
+          summary TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_profiles_resume_id ON resume_profiles(resume_id);
+      `);
+
+      // 3. Resume Sections table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_sections (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          section_key TEXT NOT NULL,
+          title TEXT NOT NULL,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          is_visible INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_sections_resume_id ON resume_sections(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_sections_order ON resume_sections(order_index);
+      `);
+
+      // 4. Resume Education table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_education (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          institution TEXT NOT NULL,
+          degree TEXT NOT NULL,
+          field_of_study TEXT,
+          location TEXT,
+          start_date TEXT,
+          end_date TEXT,
+          grade TEXT,
+          description TEXT,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_edu_resume_id ON resume_education(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_edu_order ON resume_education(order_index);
+      `);
+
+      // 5. Resume Experience table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_experience (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          is_internship INTEGER NOT NULL DEFAULT 0,
+          company TEXT NOT NULL,
+          position TEXT NOT NULL,
+          location TEXT,
+          start_date TEXT,
+          end_date TEXT,
+          is_current INTEGER NOT NULL DEFAULT 0,
+          description TEXT,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_exp_resume_id ON resume_experience(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_exp_is_internship ON resume_experience(is_internship);
+        CREATE INDEX IF NOT EXISTS idx_resume_exp_order ON resume_experience(order_index);
+      `);
+
+      // 6. Resume Projects table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_projects (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          subtitle TEXT,
+          tech_stack TEXT,
+          live_url TEXT,
+          github_url TEXT,
+          start_date TEXT,
+          end_date TEXT,
+          description TEXT,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_proj_resume_id ON resume_projects(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_proj_order ON resume_projects(order_index);
+      `);
+
+      // 7. Resume Skills table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_skills (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          category TEXT NOT NULL,
+          skills TEXT NOT NULL,
+          proficiency TEXT,
+          is_soft_skill INTEGER NOT NULL DEFAULT 0,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_skills_resume_id ON resume_skills(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_skills_order ON resume_skills(order_index);
+      `);
+
+      // 8. Resume Certifications table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_certifications (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          issuer TEXT NOT NULL,
+          issue_date TEXT,
+          expiry_date TEXT,
+          credential_id TEXT,
+          credential_url TEXT,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_cert_resume_id ON resume_certifications(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_cert_order ON resume_certifications(order_index);
+      `);
+
+      // 9. Resume Achievements table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_achievements (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          date TEXT,
+          description TEXT,
+          type TEXT NOT NULL DEFAULT 'achievement',
+          order_index INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_achieve_resume_id ON resume_achievements(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_achieve_type ON resume_achievements(type);
+        CREATE INDEX IF NOT EXISTS idx_resume_achieve_order ON resume_achievements(order_index);
+      `);
+
+      // 10. Resume Versions (Snapshots) table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_versions (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          version_label TEXT NOT NULL,
+          snapshot_data TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_versions_resume_id ON resume_versions(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_versions_created_at ON resume_versions(created_at);
+      `);
+
+      // 11. Resume Job Matches table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_job_matches (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+          company_name TEXT,
+          job_title TEXT,
+          job_description TEXT NOT NULL,
+          match_score INTEGER NOT NULL,
+          matched_keywords TEXT,
+          missing_keywords TEXT,
+          recommendations TEXT,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_job_matches(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_matches_created_at ON resume_job_matches(created_at);
+      `);
+
+      // 12. Resume Imported Files table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS resume_imported_files (
+          id TEXT PRIMARY KEY NOT NULL,
+          resume_id TEXT REFERENCES resumes(id) ON DELETE SET NULL,
+          file_name TEXT NOT NULL,
+          file_uri TEXT NOT NULL,
+          file_size INTEGER,
+          imported_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_resume_files_resume_id ON resume_imported_files(resume_id);
+        CREATE INDEX IF NOT EXISTS idx_resume_files_imported_at ON resume_imported_files(imported_at);
+      `);
+
+      // Seed Default Resume if none exists
+      const resumeCountRow = db.getFirstSync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM resumes;');
+      if (!resumeCountRow || resumeCountRow.cnt === 0) {
+        const now = Date.now();
+        const resumeId = generateUUID();
+        const profileId = generateUUID();
+
+        // Insert default resume
+        db.runSync(
+          `INSERT INTO resumes (id, title, target_role, template_id, is_default, version_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            resumeId,
+            DEFAULT_SEED_RESUME.resume.title,
+            DEFAULT_SEED_RESUME.resume.targetRole,
+            DEFAULT_SEED_RESUME.resume.templateId,
+            DEFAULT_SEED_RESUME.resume.isDefault,
+            DEFAULT_SEED_RESUME.resume.versionName,
+            now,
+            now,
+          ]
+        );
+
+        // Insert profile
+        db.runSync(
+          `INSERT INTO resume_profiles (id, resume_id, full_name, professional_title, email, phone, location, linkedin_url, github_url, portfolio_url, summary, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            profileId,
+            resumeId,
+            DEFAULT_SEED_RESUME.profile.fullName,
+            DEFAULT_SEED_RESUME.profile.professionalTitle,
+            DEFAULT_SEED_RESUME.profile.email,
+            DEFAULT_SEED_RESUME.profile.phone,
+            DEFAULT_SEED_RESUME.profile.location,
+            DEFAULT_SEED_RESUME.profile.linkedinUrl,
+            DEFAULT_SEED_RESUME.profile.githubUrl,
+            DEFAULT_SEED_RESUME.profile.portfolioUrl,
+            DEFAULT_SEED_RESUME.profile.summary,
+            now,
+            now,
+          ]
+        );
+
+        // Insert sections
+        for (const sec of DEFAULT_RESUME_SECTIONS) {
+          db.runSync(
+            `INSERT INTO resume_sections (id, resume_id, section_key, title, order_index, is_visible)
+             VALUES (?, ?, ?, ?, ?, ?);`,
+            [generateUUID(), resumeId, sec.sectionKey, sec.title, sec.orderIndex, sec.isVisible]
+          );
+        }
+
+        // Insert education
+        for (const edu of DEFAULT_SEED_RESUME.education) {
+          db.runSync(
+            `INSERT INTO resume_education (id, resume_id, institution, degree, field_of_study, location, start_date, end_date, grade, description, order_index, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+              generateUUID(),
+              resumeId,
+              edu.institution,
+              edu.degree,
+              edu.fieldOfStudy,
+              edu.location,
+              edu.startDate,
+              edu.endDate,
+              edu.grade,
+              edu.description,
+              edu.orderIndex,
+              now,
+              now,
+            ]
+          );
+        }
+
+        // Insert experience & internships
+        for (const exp of DEFAULT_SEED_RESUME.experience) {
+          db.runSync(
+            `INSERT INTO resume_experience (id, resume_id, is_internship, company, position, location, start_date, end_date, is_current, description, order_index, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+              generateUUID(),
+              resumeId,
+              exp.isInternship,
+              exp.company,
+              exp.position,
+              exp.location,
+              exp.startDate,
+              exp.endDate,
+              exp.isCurrent,
+              exp.description,
+              exp.orderIndex,
+              now,
+              now,
+            ]
+          );
+        }
+
+        // Insert projects
+        for (const proj of DEFAULT_SEED_RESUME.projects) {
+          db.runSync(
+            `INSERT INTO resume_projects (id, resume_id, title, subtitle, tech_stack, live_url, github_url, start_date, end_date, description, order_index, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+              generateUUID(),
+              resumeId,
+              proj.title,
+              proj.subtitle,
+              proj.techStack,
+              proj.liveUrl,
+              proj.githubUrl,
+              proj.startDate,
+              proj.endDate,
+              proj.description,
+              proj.orderIndex,
+              now,
+              now,
+            ]
+          );
+        }
+
+        // Insert skills
+        for (const sk of DEFAULT_SEED_RESUME.skills) {
+          db.runSync(
+            `INSERT INTO resume_skills (id, resume_id, category, skills, proficiency, is_soft_skill, order_index, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+              generateUUID(),
+              resumeId,
+              sk.category,
+              sk.skills,
+              sk.proficiency,
+              sk.isSoftSkill,
+              sk.orderIndex,
+              now,
+              now,
+            ]
+          );
+        }
+
+        // Insert certifications
+        for (const cert of DEFAULT_SEED_RESUME.certifications) {
+          db.runSync(
+            `INSERT INTO resume_certifications (id, resume_id, name, issuer, issue_date, expiry_date, credential_id, credential_url, order_index, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+              generateUUID(),
+              resumeId,
+              cert.name,
+              cert.issuer,
+              cert.issueDate,
+              cert.expiryDate,
+              cert.credentialId,
+              cert.credentialUrl,
+              cert.orderIndex,
+              now,
+              now,
+            ]
+          );
+        }
+
+        // Insert achievements
+        for (const ach of DEFAULT_SEED_RESUME.achievements) {
+          db.runSync(
+            `INSERT INTO resume_achievements (id, resume_id, title, date, description, type, order_index, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            [
+              generateUUID(),
+              resumeId,
+              ach.title,
+              ach.date,
+              ach.description,
+              ach.type,
+              ach.orderIndex,
+              now,
+              now,
+            ]
+          );
+        }
+
+        // Create initial snapshot
+        const snapshot = {
+          resume: {
+            title: DEFAULT_SEED_RESUME.resume.title,
+            targetRole: DEFAULT_SEED_RESUME.resume.targetRole,
+            templateId: DEFAULT_SEED_RESUME.resume.templateId,
+            versionName: 'v1.0',
+          },
+          profile: DEFAULT_SEED_RESUME.profile,
+          sections: DEFAULT_RESUME_SECTIONS,
+          education: DEFAULT_SEED_RESUME.education,
+          experience: DEFAULT_SEED_RESUME.experience,
+          projects: DEFAULT_SEED_RESUME.projects,
+          skills: DEFAULT_SEED_RESUME.skills,
+          certifications: DEFAULT_SEED_RESUME.certifications,
+          achievements: DEFAULT_SEED_RESUME.achievements,
+        };
+
+        db.runSync(
+          `INSERT INTO resume_versions (id, resume_id, version_label, snapshot_data, created_at)
+           VALUES (?, ?, ?, ?, ?);`,
+          [generateUUID(), resumeId, 'v1.0 - Initial SDE Master Resume', JSON.stringify(snapshot), now]
+        );
       }
     },
   },

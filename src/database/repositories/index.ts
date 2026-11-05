@@ -14,3 +14,4 @@ export * from './DsaRevisionRepository';
 export * from './DsaGoalRepository';
 export * from './DsaCompanyRepository';
 export * from './DsaDashboardRepository';
+export * from './ResumeRepository';
