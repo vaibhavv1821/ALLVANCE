@@ -20,8 +20,12 @@ import {
   RefreshCw,
   Trash2,
   Check,
+  Cloud,
+  ChevronRight,
+  User,
 } from 'lucide-react-native';
-
+import { useRouter } from 'expo-router';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useDemoStore } from '@/store/useDemoStore';
 import { AppHeader, ConfirmationDialog, SectionHeader } from '@/components';
@@ -29,8 +33,10 @@ import { getRawDb } from '@/database/client';
 import { ThemeMode } from '@/theme/tokens';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { colors, typography, spacing, borderRadius, isDark, themeMode, setThemeMode } = useAppTheme();
   const { isDemoMode, setDemoMode } = useDemoStore();
+  const { user, profile } = useAuthStore();
 
   const [dbStats, setDbStats] = useState({
     userVersion: 1,
@@ -108,6 +114,71 @@ export default function SettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Account & Cloud Sync Section */}
+        <SectionHeader
+          title="Account & Cloud Sync"
+          subtitle="Supabase authentication & encrypted cloud backup"
+          icon={<Cloud size={18} color={colors.primary} />}
+        />
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => router.push('/account' as any)}
+          style={[
+            styles.cardBox,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderRadius: borderRadius.lg,
+              padding: spacing.md,
+              marginBottom: spacing.xl,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+            <View
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: borderRadius.md,
+                backgroundColor: user ? colors.primaryMuted : colors.accentMuted,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 12,
+              }}
+            >
+              {user ? (
+                <ShieldCheck size={20} color={colors.primary} />
+              ) : (
+                <Cloud size={20} color={colors.accent} />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: colors.textPrimary,
+                  fontSize: typography.fontSizes.sm,
+                  fontWeight: typography.fontWeights.semiBold,
+                }}
+              >
+                {user ? (profile?.fullName || user.email) : 'Guest Mode (Offline Only)'}
+              </Text>
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  fontSize: typography.fontSizes.xs,
+                  marginTop: 2,
+                }}
+              >
+                {user ? 'Manage cloud backups, restore & session' : 'Sign in to enable encrypted cloud backup'}
+              </Text>
+            </View>
+          </View>
+          <ChevronRight size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
         {/* Appearance & Themes */}
         <SectionHeader
           title="Theme & Appearance"

@@ -9,8 +9,10 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Cloud, ShieldCheck, ArrowRight, User } from 'lucide-react-native';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useBackupStore } from '@/store/useBackupStore';
 import { AppHeader, SearchInput } from '@/components';
 import { ALL_MODULES, ModuleDefinition } from '@/constants/modules';
 import { getModuleIcon } from '@/utils/iconMap';
@@ -18,6 +20,8 @@ import { getModuleIcon } from '@/utils/iconMap';
 export default function MoreTab() {
   const router = useRouter();
   const { colors, typography, spacing, borderRadius, isDark } = useAppTheme();
+  const { user, profile } = useAuthStore();
+  const { lastBackupTime } = useBackupStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Group modules by category
@@ -64,6 +68,87 @@ export default function MoreTab() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Account & Cloud Backup Banner Card */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => router.push('/account' as any)}
+          style={[
+            styles.accountBanner,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderRadius: borderRadius.lg,
+              padding: spacing.md,
+              marginBottom: spacing.lg,
+            },
+          ]}
+        >
+          <View style={styles.accountBannerLeft}>
+            <View
+              style={[
+                styles.accountIconBox,
+                {
+                  backgroundColor: user ? colors.primaryMuted : colors.accentMuted,
+                  borderRadius: borderRadius.md,
+                },
+              ]}
+            >
+              {user ? (
+                <ShieldCheck size={22} color={colors.primary} />
+              ) : (
+                <Cloud size={22} color={colors.accent} />
+              )}
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: colors.textPrimary,
+                  fontSize: typography.fontSizes.sm,
+                  fontWeight: typography.fontWeights.bold,
+                }}
+              >
+                {user ? (profile?.fullName || user.email) : 'Cloud Backup (Guest Mode)'}
+              </Text>
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  fontSize: typography.fontSizes.xs,
+                  marginTop: 2,
+                }}
+              >
+                {user
+                  ? lastBackupTime
+                    ? 'Cloud backup synced • Tap to manage'
+                    : 'Authenticated • Tap to create first backup'
+                  : 'Sign in to enable cross-device cloud sync'}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.accountActionPill,
+              {
+                backgroundColor: colors.surfaceRaised,
+                borderRadius: borderRadius.sm,
+                paddingHorizontal: 8,
+                paddingVertical: 5,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: user ? colors.primary : colors.accent,
+                fontSize: typography.fontSizes.xxs,
+                fontWeight: typography.fontWeights.semiBold,
+              }}
+            >
+              {user ? 'Manage' : 'Sign In'}
+            </Text>
+            <ChevronRight size={14} color={user ? colors.primary : colors.accent} style={{ marginLeft: 2 }} />
+          </View>
+        </TouchableOpacity>
         {searchQuery.trim().length > 0 ? (
           /* Filtered search results */
           <View>
@@ -260,6 +345,29 @@ export default function MoreTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  accountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+  },
+  accountBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  accountIconBox: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  accountActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   searchWrapper: {
     paddingBottom: 4,

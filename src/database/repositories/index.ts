@@ -15,3 +15,5 @@ export * from './DsaGoalRepository';
 export * from './DsaCompanyRepository';
 export * from './DsaDashboardRepository';
 export * from './ResumeRepository';
+export * from './InterviewPrepRepository';
+export * from './MockInterviewRepository';

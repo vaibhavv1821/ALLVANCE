@@ -2,6 +2,12 @@ import { getRawDb } from '../client';
 import { DEFAULT_SETTINGS } from '../seed/defaultSettings';
 import { DEFAULT_DSA_ROADMAP } from '../seed/defaultDsaRoadmap';
 import { DEFAULT_SEED_RESUME, DEFAULT_RESUME_SECTIONS } from '../seed/defaultResume';
+import {
+  SEED_INTERVIEW_CATEGORIES,
+  ALL_INTERVIEW_QUESTIONS,
+  SEED_COMPANIES,
+  FLAGSHIP_PROJECTS,
+} from '../seed/interviews';
 import { generateUUID } from '@/utils/uuid';
 
 export interface Migration {
@@ -1012,6 +1018,309 @@ export const migrations: Migration[] = [
            VALUES (?, ?, ?, ?, ?);`,
           [generateUUID(), resumeId, 'v1.0 - Initial SDE Master Resume', JSON.stringify(snapshot), now]
         );
+      }
+    },
+  },
+  {
+    version: 5,
+    name: '0005_phase4_interviews',
+    up: (db) => {
+      // 1. Interview Categories
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_categories (
+          id TEXT PRIMARY KEY NOT NULL,
+          group_id TEXT NOT NULL,
+          group_name TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          icon TEXT,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          total_questions INTEGER NOT NULL DEFAULT 0
+        );
+      `);
+
+      // 2. Interview Prep Questions
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_prep_questions (
+          id TEXT PRIMARY KEY NOT NULL,
+          category_id TEXT NOT NULL REFERENCES interview_categories(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          difficulty TEXT NOT NULL DEFAULT 'INTERMEDIATE',
+          answer TEXT NOT NULL,
+          example TEXT,
+          code_example TEXT,
+          key_points TEXT,
+          follow_ups TEXT,
+          companies TEXT,
+          tags TEXT,
+          is_completed INTEGER NOT NULL DEFAULT 0,
+          is_bookmarked INTEGER NOT NULL DEFAULT 0,
+          is_difficult INTEGER NOT NULL DEFAULT 0,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_interview_prep_cat ON interview_prep_questions(category_id);
+      `);
+
+      // 3. Interview Notes
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_notes (
+          id TEXT PRIMARY KEY NOT NULL,
+          question_id TEXT NOT NULL REFERENCES interview_prep_questions(id) ON DELETE CASCADE,
+          note_text TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_interview_notes_q ON interview_notes(question_id);
+      `);
+
+      // 4. Interview Bookmarks
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_bookmarks (
+          id TEXT PRIMARY KEY NOT NULL,
+          question_id TEXT NOT NULL REFERENCES interview_prep_questions(id) ON DELETE CASCADE,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_interview_bm_q ON interview_bookmarks(question_id);
+      `);
+
+      // 5. Interview Question Practice Attempts
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_attempts (
+          id TEXT PRIMARY KEY NOT NULL,
+          question_id TEXT NOT NULL REFERENCES interview_prep_questions(id) ON DELETE CASCADE,
+          session_id TEXT,
+          user_answer TEXT,
+          self_rating INTEGER DEFAULT 0,
+          is_correct INTEGER DEFAULT 0,
+          time_spent_seconds INTEGER NOT NULL DEFAULT 0,
+          attempted_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_interview_att_q ON interview_attempts(question_id);
+      `);
+
+      // 6. Mock Interview Sessions
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS mock_interviews (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          company TEXT,
+          category_id TEXT,
+          difficulty TEXT NOT NULL DEFAULT 'ALL',
+          total_questions INTEGER NOT NULL,
+          duration_seconds INTEGER NOT NULL DEFAULT 0,
+          time_limit_seconds INTEGER DEFAULT 0,
+          score INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'IN_PROGRESS',
+          summary TEXT,
+          created_at INTEGER NOT NULL,
+          completed_at INTEGER
+        );
+      `);
+
+      // 7. Mock Interview Questions
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS mock_interview_questions (
+          id TEXT PRIMARY KEY NOT NULL,
+          mock_id TEXT NOT NULL REFERENCES mock_interviews(id) ON DELETE CASCADE,
+          question_id TEXT NOT NULL REFERENCES interview_prep_questions(id) ON DELETE CASCADE,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          user_answer TEXT,
+          self_rating INTEGER DEFAULT 0,
+          is_correct INTEGER DEFAULT 0,
+          time_spent_seconds INTEGER NOT NULL DEFAULT 0,
+          reviewed_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_mock_q_mock ON mock_interview_questions(mock_id);
+      `);
+
+      // 8. Interview Daily Goals
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_daily_goals (
+          id TEXT PRIMARY KEY NOT NULL,
+          date_str TEXT NOT NULL UNIQUE,
+          target_count INTEGER NOT NULL DEFAULT 5,
+          completed_count INTEGER NOT NULL DEFAULT 0,
+          is_achieved INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
+      // 9. Interview Study Sessions
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_study_sessions (
+          id TEXT PRIMARY KEY NOT NULL,
+          date_str TEXT NOT NULL,
+          category_id TEXT,
+          duration_minutes INTEGER NOT NULL DEFAULT 0,
+          questions_reviewed INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        );
+      `);
+
+      // 10. Interview Revision Queue
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_revisions (
+          id TEXT PRIMARY KEY NOT NULL,
+          question_id TEXT NOT NULL REFERENCES interview_prep_questions(id) ON DELETE CASCADE,
+          due_date INTEGER NOT NULL,
+          interval_days INTEGER NOT NULL DEFAULT 1,
+          ease_factor REAL NOT NULL DEFAULT 2.5,
+          repetition_count INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'PENDING',
+          last_reviewed_at INTEGER,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_interview_rev_due ON interview_revisions(due_date);
+      `);
+
+      // 11. Company Preparation Checklists
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_company_checklists (
+          id TEXT PRIMARY KEY NOT NULL,
+          company_name TEXT NOT NULL,
+          item_key TEXT NOT NULL,
+          item_text TEXT NOT NULL,
+          is_completed INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
+      // 12. Interview Flagship & User Projects
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_user_projects (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          subtitle TEXT,
+          tech_stack TEXT,
+          problem_statement TEXT,
+          architecture TEXT,
+          database_design TEXT,
+          apis TEXT,
+          challenges TEXT,
+          technical_decisions TEXT,
+          scalability TEXT,
+          security TEXT,
+          future_improvements TEXT,
+          custom_questions TEXT,
+          is_predefined INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
+      // 13. HR Custom Answers
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS interview_hr_answers (
+          id TEXT PRIMARY KEY NOT NULL,
+          question_key TEXT NOT NULL UNIQUE,
+          custom_answer TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
+      // Seed Interview Categories if empty
+      const catCount = db.getFirstSync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM interview_categories;');
+      if (!catCount || catCount.cnt === 0) {
+        try {
+          for (const cat of SEED_INTERVIEW_CATEGORIES) {
+            db.runSync(
+              `INSERT OR IGNORE INTO interview_categories (id, group_id, group_name, name, description, icon, order_index, total_questions)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+              [cat.id, cat.groupId, cat.groupName, cat.name, cat.description, cat.icon, cat.orderIndex, 0]
+            );
+          }
+        } catch (e) {
+          console.warn('[Migration 5] Seed interview categories error (skipped):', e);
+        }
+      }
+
+      // Seed Interview Questions if empty
+      const qCount = db.getFirstSync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM interview_prep_questions;');
+      if (!qCount || qCount.cnt === 0) {
+        const now = Date.now();
+        for (const q of ALL_INTERVIEW_QUESTIONS) {
+          db.runSync(
+            `INSERT OR IGNORE INTO interview_prep_questions (
+              id, category_id, title, difficulty, answer, example, code_example, key_points, follow_ups, companies, tags, is_completed, is_bookmarked, is_difficult, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?);`,
+            [
+              q.id,
+              q.categoryId,
+              q.title,
+              q.difficulty,
+              q.answer,
+              q.example ?? null,
+              q.codeExample ?? null,
+              JSON.stringify(q.keyPoints ?? []),
+              JSON.stringify(q.followUps ?? []),
+              JSON.stringify(q.companies ?? []),
+              JSON.stringify(q.tags ?? []),
+              now,
+              now,
+            ]
+          );
+        }
+
+        // Update total_questions on interview_categories
+        for (const cat of SEED_INTERVIEW_CATEGORIES) {
+          const countRow = db.getFirstSync<{ cnt: number }>(
+            'SELECT COUNT(*) as cnt FROM interview_prep_questions WHERE category_id = ?;',
+            [cat.id]
+          );
+          if (countRow) {
+            db.runSync('UPDATE interview_categories SET total_questions = ? WHERE id = ?;', [countRow.cnt, cat.id]);
+          }
+        }
+      }
+
+      // Seed Flagship Projects if empty
+      const projCount = db.getFirstSync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM interview_user_projects;');
+      if (!projCount || projCount.cnt === 0) {
+        const now = Date.now();
+        for (const p of FLAGSHIP_PROJECTS) {
+          db.runSync(
+            `INSERT OR IGNORE INTO interview_user_projects (
+              id, title, subtitle, tech_stack, problem_statement, architecture, database_design, apis, challenges, technical_decisions, scalability, security, future_improvements, custom_questions, is_predefined, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?);`,
+            [
+              p.id,
+              p.title,
+              p.subtitle,
+              p.techStack,
+              p.problemStatement,
+              p.architecture,
+              p.databaseDesign,
+              p.apis,
+              p.challenges,
+              p.technicalDecisions,
+              p.scalability,
+              p.security,
+              p.futureImprovements,
+              JSON.stringify(p.curatedQuestions ?? []),
+              now,
+              now,
+            ]
+          );
+        }
+      }
+
+      // Seed Company Checklists if empty
+      const chkCount = db.getFirstSync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM interview_company_checklists;');
+      if (!chkCount || chkCount.cnt === 0) {
+        const now = Date.now();
+        for (const comp of SEED_COMPANIES) {
+          for (const item of comp.defaultChecklist) {
+            db.runSync(
+              `INSERT OR IGNORE INTO interview_company_checklists (
+                id, company_name, item_key, item_text, is_completed, updated_at
+              ) VALUES (?, ?, ?, ?, 0, ?);`,
+              [generateUUID(), comp.name, item.key, item.text, now]
+            );
+          }
+        }
       }
     },
   },

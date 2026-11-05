@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { initDatabase } from '@/database';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useAuthStore } from '@/store/useAuthStore';
+import { AutoBackupService } from '@/services/backup/autoBackupService';
 
 // Prevent splash screen from auto-hiding before initialization completes
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -16,15 +18,25 @@ export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
   const { isDark, colors } = useAppTheme();
+  const { user, isGuest, isInitialized, initAuth } = useAuthStore();
+  const router = useRouter();
+  const segments = useSegments();
 
+  // 1. Initialize SQLite Database, Migrations & Auth Session
   useEffect(() => {
     async function prepare() {
       try {
-        // Initialize SQLite & run migrations
+        // Initialize SQLite & run migrations (Phase 0 to Phase 4)
         const result = initDatabase();
         if (!result.success) {
           console.warn('[ALLVANCE Init] Migration warning:', result.error);
         }
+
+        // Initialize Supabase Auth & SecureStore session
+        await initAuth();
+
+        // Initialize automatic background/foreground backup listener
+        AutoBackupService.init();
       } catch (err: any) {
         console.error('[ALLVANCE Init Error]:', err);
         setInitError(err?.message || 'Database error');
@@ -35,7 +47,27 @@ export default function RootLayout() {
     }
 
     prepare();
-  }, []);
+  }, [initAuth]);
+
+  // 2. Navigation Routing Gate
+  // First launch -> Welcome. Returning user or guest -> Dashboard.
+  useEffect(() => {
+    if (!dbReady || !isInitialized) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!user && !isGuest) {
+      // First-time or signed-out user: redirect to welcome if not already in auth flow
+      if (!inAuthGroup) {
+        router.replace('/(auth)/welcome' as any);
+      }
+    } else if (user || isGuest) {
+      // Authenticated or guest user: if they are in auth flow, send them to dashboard
+      if (inAuthGroup) {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [dbReady, isInitialized, user, isGuest, segments, router]);
 
   return (
     <SafeAreaProvider style={{ backgroundColor: colors.background }}>
@@ -48,6 +80,8 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="account" options={{ headerShown: false }} />
         <Stack.Screen name="placement" options={{ headerShown: false }} />
         <Stack.Screen name="dsa" options={{ headerShown: false }} />
         <Stack.Screen name="resume" options={{ headerShown: false }} />

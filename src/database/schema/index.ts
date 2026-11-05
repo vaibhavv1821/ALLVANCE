@@ -6,3 +6,4 @@ export * from './planner';
 export * from './knowledge';
 export * from './analytics';
 export * from './resume';
+export * from './interviews';
