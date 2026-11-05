@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,31 @@ import { Code2, Database, Calculator, MessagesSquare } from 'lucide-react-native
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { AppHeader, ModuleCard, SectionHeader, StatCard, EmptyState } from '@/components';
 import { useDemoStore } from '@/store/useDemoStore';
+import { dsaDashboardRepository } from '@/database/repositories/DsaDashboardRepository';
 
 export default function PracticeTab() {
   const router = useRouter();
   const { colors, typography, spacing, isDark } = useAppTheme();
   const { isDemoMode } = useDemoStore();
+  const [realDsaSolved, setRealDsaSolved] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchStats() {
+      try {
+        const stats = await dsaDashboardRepository.getLiveHomeMetrics();
+        if (isMounted) {
+          setRealDsaSolved(stats.dsaSolved);
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+    fetchStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [isDemoMode]);
 
   const practiceModules = [
     {
@@ -77,8 +97,8 @@ export default function PracticeTab() {
         <View style={[styles.statsRow, { marginBottom: spacing.lg }]}>
           <StatCard
             label="DSA Solved"
-            value={isDemoMode ? 142 : 0}
-            subtext={isDemoMode ? 'Target: 250' : 'No problems solved'}
+            value={isDemoMode ? 142 : realDsaSolved}
+            subtext={isDemoMode ? 'Target: 250' : realDsaSolved > 0 ? `${realDsaSolved} problems solved` : 'No problems solved yet'}
             accentColor="#10B981"
             icon={<Code2 size={16} color="#10B981" />}
             onPress={() => router.push('/dsa')}

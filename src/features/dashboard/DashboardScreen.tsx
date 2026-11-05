@@ -41,6 +41,7 @@ import {
 import { ALL_MODULES } from '@/constants/modules';
 import { getModuleIcon } from '@/utils/iconMap';
 import { placementDashboardRepository } from '@/database/repositories/PlacementDashboardRepository';
+import { dsaDashboardRepository } from '@/database/repositories/DsaDashboardRepository';
 
 export const DashboardScreen: React.FC = () => {
   const router = useRouter();
@@ -48,14 +49,25 @@ export const DashboardScreen: React.FC = () => {
   const { isDemoMode, toggleDemoMode } = useDemoStore();
   const [quickActionDialog, setQuickActionDialog] = useState<string | null>(null);
   const [realActiveApps, setRealActiveApps] = useState(0);
+  const [realDsaStats, setRealDsaStats] = useState({
+    dsaSolved: 0,
+    dsaTarget: 3,
+    dsaDailyProgressPercent: 0,
+    revisionDueCount: 0,
+    currentStreak: 0,
+  });
 
   useEffect(() => {
     let isMounted = true;
     const fetchLiveStats = async () => {
       try {
-        const m = await placementDashboardRepository.getMetrics();
+        const [m, dsaM] = await Promise.all([
+          placementDashboardRepository.getMetrics(),
+          dsaDashboardRepository.getLiveHomeMetrics(),
+        ]);
         if (isMounted) {
           setRealActiveApps(m.activeApplications);
+          setRealDsaStats(dsaM);
         }
       } catch (e) {
         // Fallback to 0 if database not yet initialized or table empty
@@ -83,9 +95,18 @@ export const DashboardScreen: React.FC = () => {
   }).format(new Date());
 
   // Demo mode data vs Zero mode data
-  const overallProgress = isDemoMode ? 68 : 0;
+  const overallProgress = isDemoMode
+    ? 68
+    : Math.min(100, Math.round((realDsaStats.dsaSolved > 0 ? 25 : 0) + (realActiveApps > 0 ? 25 : 0)));
   const activeApplications = isDemoMode ? 12 : realActiveApps;
-  const dsaProgress = isDemoMode ? 142 : 0;
+  const dsaProgress = isDemoMode ? 142 : realDsaStats.dsaSolved;
+  const dsaSubtext = isDemoMode
+    ? '3 solved this week'
+    : realDsaStats.revisionDueCount > 0
+    ? `${realDsaStats.revisionDueCount} revisions due today`
+    : realDsaStats.dsaSolved > 0
+    ? `${realDsaStats.currentStreak} day streak • Target: ${realDsaStats.dsaTarget}`
+    : '0 solved';
   const sqlProgress = isDemoMode ? 48 : 0;
 
   const demoTasks = [
@@ -334,7 +355,7 @@ export const DashboardScreen: React.FC = () => {
           <StatCard
             label="DSA Problems"
             value={dsaProgress}
-            subtext={isDemoMode ? '3 solved this week' : '0 solved'}
+            subtext={dsaSubtext}
             accentColor="#10B981"
             icon={<Code2 size={16} color="#10B981" />}
             onPress={() => router.push('/dsa')}

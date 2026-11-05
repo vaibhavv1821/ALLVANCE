@@ -1,5 +1,7 @@
 import { getRawDb } from '../client';
 import { DEFAULT_SETTINGS } from '../seed/defaultSettings';
+import { DEFAULT_DSA_ROADMAP } from '../seed/defaultDsaRoadmap';
+import { generateUUID } from '@/utils/uuid';
 
 export interface Migration {
   version: number;
@@ -281,6 +283,311 @@ export const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_offers_app_id ON offers(application_id);
         CREATE INDEX IF NOT EXISTS idx_offers_status ON offers(acceptance_status);
       `);
+    },
+  },
+  {
+    version: 3,
+    name: '0003_dsa_module',
+    up: (db) => {
+      // 1. Upgrade legacy dsa_problems table if it has integer primary key
+      let hasLegacy = false;
+      try {
+        const columns = db.getAllSync<{ name: string; type: string }>('PRAGMA table_info(dsa_problems);');
+        const idCol = columns.find((c) => c.name === 'id');
+        if (idCol && idCol.type.toUpperCase().includes('INT')) {
+          db.execSync('ALTER TABLE dsa_problems RENAME TO dsa_problems_legacy;');
+          hasLegacy = true;
+        }
+      } catch {
+        // Table does not exist yet
+      }
+
+      // 2. Create dsa_topics table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_topics (
+          id TEXT PRIMARY KEY NOT NULL,
+          level INTEGER NOT NULL,
+          level_name TEXT NOT NULL,
+          title TEXT NOT NULL,
+          order_index INTEGER NOT NULL,
+          description TEXT,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          status TEXT NOT NULL DEFAULT 'not_started',
+          mastery TEXT NOT NULL DEFAULT 'average',
+          notes TEXT,
+          is_custom INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_topics_level ON dsa_topics(level);
+        CREATE INDEX IF NOT EXISTS idx_dsa_topics_status ON dsa_topics(status);
+        CREATE INDEX IF NOT EXISTS idx_dsa_topics_order ON dsa_topics(order_index);
+      `);
+
+      // 3. Create dsa_subtopics table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_subtopics (
+          id TEXT PRIMARY KEY NOT NULL,
+          topic_id TEXT NOT NULL REFERENCES dsa_topics(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          is_completed INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_subtopics_topic_id ON dsa_subtopics(topic_id);
+      `);
+
+      // 4. Create new dsa_problems table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_problems (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          problem_statement TEXT,
+          problem_id_ext TEXT,
+          platform TEXT NOT NULL DEFAULT 'LeetCode',
+          external_url TEXT,
+          topic_id TEXT REFERENCES dsa_topics(id) ON DELETE SET NULL,
+          topic_name TEXT NOT NULL,
+          subtopic_id TEXT REFERENCES dsa_subtopics(id) ON DELETE SET NULL,
+          subtopic_name TEXT,
+          difficulty TEXT NOT NULL DEFAULT 'Medium',
+          status TEXT NOT NULL DEFAULT 'unsolved',
+          first_attempted_at INTEGER,
+          solved_at INTEGER,
+          attempts_count INTEGER NOT NULL DEFAULT 0,
+          confidence_rating INTEGER DEFAULT 3,
+          personal_difficulty TEXT DEFAULT 'Medium',
+          approach TEXT,
+          algorithm_explanation TEXT,
+          time_complexity TEXT,
+          space_complexity TEXT,
+          notes TEXT,
+          important_edge_cases TEXT,
+          is_favorite INTEGER NOT NULL DEFAULT 0,
+          revision_status TEXT NOT NULL DEFAULT 'none',
+          next_revision_at INTEGER,
+          revision_interval_step INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_topic_id ON dsa_problems(topic_id);
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_difficulty ON dsa_problems(difficulty);
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_status ON dsa_problems(status);
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_platform ON dsa_problems(platform);
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_favorite ON dsa_problems(is_favorite);
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_rev_status ON dsa_problems(revision_status);
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_next_rev ON dsa_problems(next_revision_at);
+        CREATE INDEX IF NOT EXISTS idx_dsa_problems_created ON dsa_problems(created_at);
+      `);
+
+      // Migrate any legacy rows if existed
+      if (hasLegacy) {
+        try {
+          const legacyRows = db.getAllSync<any>('SELECT * FROM dsa_problems_legacy;');
+          if (legacyRows && legacyRows.length > 0) {
+            for (const row of legacyRows) {
+              const newId = generateUUID();
+              db.runSync(
+                `INSERT INTO dsa_problems (
+                  id, title, platform, difficulty, status, topic_name, external_url, notes, solved_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                [
+                  newId,
+                  row.title || 'Untitled Problem',
+                  row.platform || 'LeetCode',
+                  row.difficulty || 'Medium',
+                  row.status || 'unsolved',
+                  row.topic || 'General',
+                  row.url || null,
+                  row.notes || null,
+                  row.solved_at || null,
+                  row.created_at || Date.now(),
+                  Date.now(),
+                ]
+              );
+            }
+          }
+          db.execSync('DROP TABLE IF EXISTS dsa_problems_legacy;');
+        } catch (e) {
+          console.warn('[Migration 3] Notice when migrating legacy dsa problems:', e);
+        }
+      }
+
+      // 5. Create dsa_problem_tags table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_problem_tags (
+          id TEXT PRIMARY KEY NOT NULL,
+          problem_id TEXT NOT NULL REFERENCES dsa_problems(id) ON DELETE CASCADE,
+          tag TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_tags_problem_id ON dsa_problem_tags(problem_id);
+        CREATE INDEX IF NOT EXISTS idx_dsa_tags_tag ON dsa_problem_tags(tag);
+      `);
+
+      // 6. Create dsa_problem_companies table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_problem_companies (
+          id TEXT PRIMARY KEY NOT NULL,
+          problem_id TEXT NOT NULL REFERENCES dsa_problems(id) ON DELETE CASCADE,
+          company_name TEXT NOT NULL,
+          is_verified INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_companies_problem_id ON dsa_problem_companies(problem_id);
+        CREATE INDEX IF NOT EXISTS idx_dsa_companies_name ON dsa_problem_companies(company_name);
+      `);
+
+      // 7. Create dsa_attempts table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_attempts (
+          id TEXT PRIMARY KEY NOT NULL,
+          problem_id TEXT NOT NULL REFERENCES dsa_problems(id) ON DELETE CASCADE,
+          attempt_number INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          time_spent_minutes INTEGER DEFAULT 0,
+          approach_notes TEXT,
+          code_snippet TEXT,
+          language TEXT,
+          attempted_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_attempts_problem_id ON dsa_attempts(problem_id);
+        CREATE INDEX IF NOT EXISTS idx_dsa_attempts_date ON dsa_attempts(attempted_at);
+      `);
+
+      // 8. Create dsa_solutions table (Notebook)
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_solutions (
+          id TEXT PRIMARY KEY NOT NULL,
+          problem_id TEXT NOT NULL REFERENCES dsa_problems(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          language TEXT NOT NULL,
+          code TEXT NOT NULL,
+          approach TEXT,
+          explanation TEXT,
+          time_complexity TEXT,
+          space_complexity TEXT,
+          edge_cases TEXT,
+          mistakes TEXT,
+          is_optimal INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_solutions_problem_id ON dsa_solutions(problem_id);
+      `);
+
+      // 9. Create dsa_revisions table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_revisions (
+          id TEXT PRIMARY KEY NOT NULL,
+          problem_id TEXT NOT NULL REFERENCES dsa_problems(id) ON DELETE CASCADE,
+          revision_number INTEGER NOT NULL,
+          scheduled_date INTEGER NOT NULL,
+          completed_date INTEGER,
+          recall_rating TEXT,
+          notes TEXT,
+          time_taken_minutes INTEGER DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'upcoming',
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_revisions_problem_id ON dsa_revisions(problem_id);
+        CREATE INDEX IF NOT EXISTS idx_dsa_revisions_status ON dsa_revisions(status);
+        CREATE INDEX IF NOT EXISTS idx_dsa_revisions_sched ON dsa_revisions(scheduled_date);
+      `);
+
+      // 10. Create dsa_study_sessions table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_study_sessions (
+          id TEXT PRIMARY KEY NOT NULL,
+          start_time INTEGER NOT NULL,
+          end_time INTEGER,
+          duration_minutes INTEGER NOT NULL DEFAULT 0,
+          topic_id TEXT REFERENCES dsa_topics(id) ON DELETE SET NULL,
+          problems_solved INTEGER NOT NULL DEFAULT 0,
+          notes TEXT,
+          date_string TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_sessions_date ON dsa_study_sessions(date_string);
+      `);
+
+      // 11. Create dsa_daily_goals table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_daily_goals (
+          id TEXT PRIMARY KEY NOT NULL,
+          target_date TEXT NOT NULL UNIQUE,
+          problem_target INTEGER NOT NULL DEFAULT 3,
+          duration_target_minutes INTEGER NOT NULL DEFAULT 60,
+          weekly_problem_target INTEGER NOT NULL DEFAULT 20,
+          preferred_difficulty TEXT DEFAULT 'All',
+          preferred_topics TEXT,
+          solved_count INTEGER NOT NULL DEFAULT 0,
+          study_duration_minutes INTEGER NOT NULL DEFAULT 0,
+          is_completed INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_goals_date ON dsa_daily_goals(target_date);
+      `);
+
+      // 12. Create dsa_daily_activity table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_daily_activity (
+          id TEXT PRIMARY KEY NOT NULL,
+          date_string TEXT NOT NULL UNIQUE,
+          problems_solved INTEGER NOT NULL DEFAULT 0,
+          problems_attempted INTEGER NOT NULL DEFAULT 0,
+          revisions_completed INTEGER NOT NULL DEFAULT 0,
+          study_minutes INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_daily_activity_date ON dsa_daily_activity(date_string);
+      `);
+
+      // 13. Create dsa_favorites table
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS dsa_favorites (
+          id TEXT PRIMARY KEY NOT NULL,
+          problem_id TEXT NOT NULL REFERENCES dsa_problems(id) ON DELETE CASCADE UNIQUE,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_dsa_fav_problem_id ON dsa_favorites(problem_id);
+      `);
+
+      // 14. Pre-seed Curated 26 Roadmap Topics and Subtopics
+      const now = Date.now();
+      const topicCountRow = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM dsa_topics;');
+      if (!topicCountRow || topicCountRow.count === 0) {
+        for (const topic of DEFAULT_DSA_ROADMAP) {
+          db.runSync(
+            `INSERT OR IGNORE INTO dsa_topics (
+              id, level, level_name, title, order_index, description, priority, status, mastery, is_custom, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'not_started', 'average', 0, ?, ?);`,
+            [
+              topic.id,
+              topic.level,
+              topic.levelName,
+              topic.title,
+              topic.orderIndex,
+              topic.description,
+              topic.priority,
+              now,
+              now,
+            ]
+          );
+
+          let subOrder = 1;
+          for (const subTitle of topic.subtopics) {
+            const subId = `${topic.id}-sub-${subOrder}`;
+            db.runSync(
+              `INSERT OR IGNORE INTO dsa_subtopics (
+                id, topic_id, title, order_index, is_completed, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, 0, ?, ?);`,
+              [subId, topic.id, subTitle, subOrder, now, now]
+            );
+            subOrder++;
+          }
+        }
+      }
     },
   },
 ];
