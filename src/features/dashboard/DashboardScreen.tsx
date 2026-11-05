@@ -13,6 +13,7 @@ import {
   Briefcase,
   Code2,
   Database,
+  FileText,
   Sparkles,
   Bot,
   Calendar,
@@ -129,9 +130,9 @@ export const DashboardScreen: React.FC = () => {
 
   const quickActions = [
     { title: 'Solve DSA', icon: <Code2 size={18} color="#10B981" />, route: '/dsa' },
-    { title: 'New Application', icon: <Briefcase size={18} color="#38BDF8" />, route: '/placement' },
+    { title: 'Applications', icon: <Briefcase size={18} color="#38BDF8" />, route: '/placement' },
+    { title: 'Resume ATS', icon: <FileText size={18} color="#818CF8" />, route: '/resume' },
     { title: 'SQL Studio', icon: <Database size={18} color="#F59E0B" />, route: '/sql' },
-    { title: 'AI Assistant', icon: <Bot size={18} color="#A855F7" />, route: '/ai' },
   ];
 
   return (
