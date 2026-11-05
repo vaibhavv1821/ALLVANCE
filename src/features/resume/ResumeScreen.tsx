@@ -139,7 +139,7 @@ export const ResumeScreen: React.FC<ResumeScreenProps> = ({ showBack = true }) =
 
   useEffect(() => {
     loadResumes();
-  }, []);
+  }, [loadResumes]);
 
   const handleSelectResume = async (id: string) => {
     setActiveResumeId(id);

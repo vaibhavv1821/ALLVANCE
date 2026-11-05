@@ -316,7 +316,7 @@ export const ResumePreviewTab: React.FC<ResumePreviewTabProps> = ({
 
             {resume.skills.length > 0 && (
               <View style={{ marginBottom: 10 }}>
-                <Text style={styles.techHeading}>// TECHNICAL EXPERTISE</Text>
+                <Text style={styles.techHeading}>{'// TECHNICAL EXPERTISE'}</Text>
                 {resume.skills.map((s) => (
                   <Text key={s.id} style={{ fontSize: 8.5, color: '#334155', marginBottom: 2 }}>
                     <Text style={{ fontWeight: '700', color: '#0F172A' }}>{s.category}: </Text>
@@ -328,7 +328,7 @@ export const ResumePreviewTab: React.FC<ResumePreviewTabProps> = ({
 
             {resume.projects.length > 0 && (
               <View style={{ marginBottom: 10 }}>
-                <Text style={styles.techHeading}>// CORE ENGINEERING PROJECTS</Text>
+                <Text style={styles.techHeading}>{'// CORE ENGINEERING PROJECTS'}</Text>
                 {resume.projects.map((pr) => (
                   <View key={pr.id} style={{ marginBottom: 6 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

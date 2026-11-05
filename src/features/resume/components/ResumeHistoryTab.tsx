@@ -129,7 +129,7 @@ export const ResumeHistoryTab: React.FC<ResumeHistoryTabProps> = ({
             No Snapshots Saved Yet
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: typography.fontSizes.xs, textAlign: 'center', marginTop: 4 }}>
-            Tap "Save Snapshot" above to create an offline backup of your current resume.
+            Tap &quot;Save Snapshot&quot; above to create an offline backup of your current resume.
           </Text>
         </View>
       ) : (

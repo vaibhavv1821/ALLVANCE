@@ -21,9 +21,8 @@ import {
   History,
 } from 'lucide-react-native';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { ResumeDetailed } from '@/database/repositories/ResumeRepository';
+import { ResumeDetailed, resumeRepository } from '@/database/repositories/ResumeRepository';
 import { matchJobDescription, JobMatchResult } from '../services/jobMatcher';
-import { resumeRepository } from '@/database/repositories/ResumeRepository';
 
 interface JobMatchTabProps {
   resume: ResumeDetailed;
